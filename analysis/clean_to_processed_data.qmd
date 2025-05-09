@@ -63,12 +63,28 @@ research_stage_feeling_text = clean_data |>
   select(anonym_id, research_stage, research_stage_feeling_cause,)
 ```
 
+# Number of 0s and NAs per person
+
+```{r}
+non_informative_values = data |> 
+  select(anonym_id, research_stage, all_of(emotion_vars)) |> 
+  rowwise() |> 
+  mutate(
+    zero_count = sum(c_across(all_of(emotion_vars)) == 0, na.rm = TRUE),
+    na_count = sum(is.na(c_across(all_of(emotion_vars))))
+  ) |> 
+  ungroup() |> 
+  select(anonym_id, zero_count, na_count)
+```
+
+
 ### Saving the data
 
 ```{r}
 write.csv(clean_data, here::here("data/processed/clean_to_processed_data.csv"), row.names = FALSE)
 write.csv(general_feeling_text, here::here("data/processed/general_feeling_text.csv"), row.names = FALSE)
 write.csv(research_stage_feeling_text, here::here("data/processed/research_stage_feeling_text.csv"), row.names = FALSE)
+write.csv(non_informative_values, here::here("data/processed/non_informative_values.csv"), row.names = FALSE)
 ```
 
 
