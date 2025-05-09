@@ -14,6 +14,7 @@ format: html
 library(tidyverse)
 library(here)
 library(ggplot2)
+library(ggnewscale)
 library(scales)
 data_path <- here("data")
 ```
@@ -163,9 +164,9 @@ emotion_vars <- c(
   "hate", "anger"
 )
 
-research_stage_grouped_mean <- data %>% 
-  filter(!is.na(research_stage)) %>% 
-  group_by(research_stage) %>% 
+research_stage_grouped_mean <- data |> 
+  filter(!is.na(research_stage)) |> 
+  group_by(research_stage) |> 
   summarise(
     across(
       all_of(emotion_vars), 
@@ -220,13 +221,14 @@ three_highest_feelings = research_stage_long |>
 
 # Heatmap of emotion intensities
 
-heatmap_data <- research_stage_grouped_mean %>%
+heatmap_data <- research_stage_grouped_mean |>
   pivot_longer(
     cols = -research_stage,
     names_to = "emotion",
     values_to = "mean_intensity"
-  ) %>%
-  mutate(emotion = factor(emotion, levels = rev(emotion_vars)))
+  ) |>
+  mutate(emotion = factor(emotion, levels = rev(emotion_vars))) |> 
+  mutate(valence = ifelse(emotion %in% positive_emotions, "positive", "negative"))
 
 ggplot(heatmap_data, aes(x = factor(research_stage), y = emotion, fill = mean_intensity)) +
   geom_tile(color = "white") +
@@ -249,27 +251,97 @@ ggplot(heatmap_data, aes(x = factor(research_stage), y = emotion, fill = mean_in
   )
 
 ggsave(
-  here::here("analysis/figures/heatmap_ggplot.jpeg"),
+  here::here("analysis/figures/heatmap_plot.jpeg"),
   width = 8,
   height = 6,
   dpi = 300
 )
 
-# faceted bar chart for each stage
-# IN PROGRESS
-research_stage_long |> 
-  ggplot(aes(x = emotion, y = mean_value)) +
-  geom_bar(stat = "identity") +
-  facet_wrap(~ research_stage) +
-  scale_y_continuous(limits = c(0, 7), expand = c(0, 0)) +
+# Heatmap for positive and negative emotions
+
+ggplot() +
+  # Negative emotions in blue
+  geom_tile(
+    data = filter(heatmap_data, valence == "negative"),
+    aes(x = factor(research_stage), y = emotion, fill = mean_intensity),
+    color = "white"
+  ) +
+  scale_fill_gradient(
+    low = "#e0ecf4", high = "#0571b0",  # light blue to dark blue
+    name = "Negative\nMean Intensity"
+  ) +
+    ggnewscale::new_scale_fill() +
+# Positive emotions in red
+  geom_tile(
+    data = filter(heatmap_data, valence == "positive"),
+    aes(x = factor(research_stage), y = emotion, fill = mean_intensity),
+    color = "white"
+  ) +
+  scale_fill_gradient(
+    low = "#ffe5e5", high = "#d73027",  # light red to dark red
+    name = "Positive\nMean Intensity"
+  ) +
+  labs(title = "Mean Emotion Intensity by Research Stage") +
+  coord_cartesian(clip = "off") +
   theme_minimal() +
-  labs(title = "Emotion intensity by research stage", y = "", x = "") +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1),
-    plot.title = element_text(size = 16),
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor.x = element_blank()
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.grid = element_blank(),
+    legend.position = "bottom",
+    plot.margin = margin(20, 25, 10, 10)
   )
+
+ggsave(
+  here::here("analysis/figures/heatmap_plot_valence.jpeg"),
+  width = 8,
+  height = 6,
+  dpi = 300
+)
+
+# faceted bar chart for each stage for positive and negative emotions
+
+positive_emotions_mean <- positive_emotions_data |>
+  filter(!is.na(research_stage)) |>
+  rowwise() |>
+  mutate(positive_mean = mean(c_across(all_of(positive_emotions))[c_across(all_of(positive_emotions)) != 0], na.rm = TRUE)) |>
+  ungroup() |>
+  group_by(research_stage) |>
+  summarise(positive_mean = round(mean(positive_mean, na.rm = TRUE), 3))
+
+
+negative_emotions_mean <- negative_emotions_data |>
+  filter(!is.na(research_stage)) |>
+  rowwise() |>
+  mutate(negative_mean = mean(c_across(all_of(negative_emotions))[c_across(all_of(negative_emotions)) != 0], na.rm = TRUE)) |>
+  ungroup() |>
+  group_by(research_stage) |>
+  summarise(negative_mean = round(mean(negative_mean, na.rm = TRUE), 3))
+
+combined_valence_emotions_mean = positive_emotions_mean |> 
+  left_join(negative_emotions_mean, by = "research_stage")
+
+valence_long_mean <- combined_valence_emotions_mean %>%
+  pivot_longer(cols = c(positive_mean, negative_mean),
+               names_to = "valence",
+               values_to = "mean_intensity") %>%
+  mutate(valence = ifelse(valence == "positive_mean", "positive", "negative"))
+
+ggplot(valence_long_mean, aes(x = valence, y = mean_intensity, fill = valence)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = c("positive" = "#d73027", "negative" = "#4575b4")) +
+  facet_wrap(~ research_stage, ncol = 3) +
+  labs(y = "Mean Emotion Intensity", x = NULL) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank())
+
+ggsave(
+  here::here("analysis/figures/faceted_bar_chart_valence.jpeg"),
+  width = 8,
+  height = 6,
+  dpi = 300
+)
 ```
 
 ### Group positive and negative emotions
