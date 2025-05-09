@@ -38,8 +38,18 @@ data = data |>
     "Waiting for journal's response",
     "Reviews and revisions",
     "Post-project stage (you recently finished the project)"
-    )
-  ))
+    ))) |> 
+  mutate(research_stage = fct_recode(research_stage,
+    "Project genesis" = "Project genesis/ first thoughts/ idea creation",
+    "Reality check" = "Reality check (e.g., literature search, consultation with colleagues)",
+    "Preparations" = "Preparations (IRB permit, preregistration, experiment preparations)",
+    "Data collection" = "Data collection",
+    "Data analysis" = "Data analysis",
+    "Report writing" = "Report writing",
+    "Waiting for journal" = "Waiting for journal's response",
+    "Reviews and revisions" = "Reviews and revisions",
+    "Post-project stage" = "Post-project stage (you recently finished the project)")
+  )
 ```
 
 
@@ -188,12 +198,78 @@ three_highest_feelings = research_stage_long |>
 
 
 # what to do with 0
+
+# no_emotion = data |> 
+#   filter(!is.na(research_stage)) |> 
+#   group_by(research_stage) |> 
+#   summarise(
+#     across(all_of(emotion_vars), ~ sum(.x == 0, na.rm = TRUE))
+#   )
+
 # how many non-0 values
+
 # amount indicated weighted
+
 # per person most intense feeling per stage
+
 # General project vibe
+
 # Dominant emotion within a stage
+
 # Positive-negative intensity
+
+# Heatmap of emotion intensities
+
+heatmap_data <- research_stage_grouped_mean %>%
+  pivot_longer(
+    cols = -research_stage,
+    names_to = "emotion",
+    values_to = "mean_intensity"
+  ) %>%
+  mutate(emotion = factor(emotion, levels = rev(emotion_vars)))
+
+ggplot(heatmap_data, aes(x = factor(research_stage), y = emotion, fill = mean_intensity)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis_c(option = "plasma", na.value = "grey90") +
+  labs(
+    fill = "Mean Intensity (excl. 0)",
+    title = "Mean Emotion Intensity by Research Stage"
+  ) +
+  geom_segment(aes(x = 0.5, xend = 9.5, y = 10.5), color = "green") +
+  annotate("text", x = 10, y = 10.5, label = "Valence\ndivide") +
+  coord_cartesian(clip = "off") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.grid = element_blank(),
+    plot.margin = margin(20, 25, 10, 10),
+    legend.position = "bottom"
+  )
+
+ggsave(
+  here::here("analysis/figures/heatmap_ggplot.jpeg"),
+  width = 8,
+  height = 6,
+  dpi = 300
+)
+
+# faceted bar chart for each stage
+# IN PROGRESS
+research_stage_long |> 
+  ggplot(aes(x = emotion, y = mean_value)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~ research_stage) +
+  scale_y_continuous(limits = c(0, 7), expand = c(0, 0)) +
+  theme_minimal() +
+  labs(title = "Emotion intensity by research stage", y = "", x = "") +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(size = 16),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank()
+  )
 ```
 
 ### Group positive and negative emotions

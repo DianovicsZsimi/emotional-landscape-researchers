@@ -53,19 +53,6 @@ clean_data = data |>
   )
 ```
 
-### Change 0 answers to NA
-
-```{r}
-clean_data = clean_data |> 
-  mutate(across(
-    c(interest, amusement, pride, joy, pleasure, contentment, love, admiration,
-      relief, compassion, sadness, guilt, regret, shame, disappointment,
-      fear, disgust, contempt, hate, anger),
-    ~ na_if(.x, 0)
-  ))
-```
-
-
 ### Spreadsheet for text analyses
 
 ```{r}
