@@ -24,6 +24,25 @@ data_path <- here("data")
 data = read.csv(here::here("data/processed/clean_to_processed_data.csv"))
 ```
 
+### Refactoring research stages chronologically
+
+```{r}
+data = data |> 
+  mutate(research_stage = factor(research_stage, levels = c(
+    "Project genesis/ first thoughts/ idea creation",
+    "Reality check (e.g., literature search, consultation with colleagues)",
+    "Preparations (IRB permit, preregistration, experiment preparations)",
+    "Data collection",
+    "Data analysis",
+    "Report writing",
+    "Waiting for journal's response",
+    "Reviews and revisions",
+    "Post-project stage (you recently finished the project)"
+    )
+  ))
+```
+
+
 ## Demographic data
 
 ### Number of participants
@@ -78,7 +97,7 @@ category_of_work = data |>
 
 ```{r}
 research_stage = data |> 
-  filter(!research_stage %in% "") |>
+  filter(!is.na(research_stage)) |>
   group_by(research_stage) |> 
   summarise(n = n())
 ```
@@ -127,36 +146,47 @@ ggsave(
 ### Grouping research stages
 
 ```{r}
-#WRONG
-research_stage_grouped_mean = data |> 
-  filter(!research_stage %in% "") |> 
-  group_by(research_stage) |> 
+emotion_vars <- c(
+  "interest", "amusement", "pride", "joy", "pleasure", "contentment",
+  "love", "admiration", "relief", "compassion", "sadness", "guilt",
+  "regret", "shame", "disappointment", "fear", "disgust", "contempt",
+  "hate", "anger"
+)
+
+research_stage_grouped_mean <- data %>% 
+  filter(!is.na(research_stage)) %>% 
+  group_by(research_stage) %>% 
   summarise(
-    interest = round(mean(interest, na.rm = TRUE), 3),
-    amusement = round(mean(amusement, na.rm = TRUE), 3),
-    pride = round(mean(pride, na.rm = TRUE), 3),
-    joy = round(mean(joy, na.rm = TRUE), 3),
-    pleasure = round(mean(pleasure, na.rm = TRUE), 3),
-    contentment = round(mean(contentment, na.rm = TRUE), 3),
-    love = round(mean(love, na.rm = TRUE), 3),
-    admiration = round(mean(admiration, na.rm = TRUE), 3),
-    relief = round(mean(relief, na.rm = TRUE), 3),
-    compassion = round(mean(compassion, na.rm = TRUE), 3),
-    sadness = round(mean(sadness, na.rm = TRUE), 3),
-    guilt = round(mean(guilt, na.rm = TRUE), 3),
-    regret = round(mean(regret, na.rm = TRUE), 3),
-    shame = round(mean(shame, na.rm = TRUE), 3),
-    disappointment = round(mean(disappointment, na.rm = TRUE), 3),
-    fear = round(mean(fear, na.rm = TRUE), 3),
-    disgust = round(mean(disgust, na.rm = TRUE), 3),
-    contempt = round(mean(contempt, na.rm = TRUE), 3),
-    hate = round(mean(hate, na.rm = TRUE), 3),
-    anger = round(mean(anger, na.rm = TRUE), 3)
+    across(
+      all_of(emotion_vars), 
+      ~ round(mean(.x[.x != 0], na.rm = TRUE), 3)
+    )
   )
 
 # For every research stage, pick the highest and lowest
+
+research_stage_long <- research_stage_grouped_mean |> 
+  pivot_longer(cols = all_of(emotion_vars), names_to = "emotion", values_to = "mean_value")
+
+highest_stage_feeling <- research_stage_long |> 
+  group_by(research_stage) |> 
+  slice_max(order_by = mean_value, n = 1, with_ties = FALSE)
+
+lowest_stage_feeling <- research_stage_long |> 
+  group_by(research_stage) |> 
+  slice_min(order_by = mean_value, n = 1, with_ties = FALSE)
+
+highest_lowest_feeling = highest_stage_feeling |> 
+  left_join(lowest_stage_feeling, by = "research_stage", suffix = c("_highest", "_lowest")) |> 
+  select(research_stage, emotion_highest, mean_value_highest, emotion_lowest, mean_value_lowest)
+
 # 3 highest
-# highest positive and highest negative
+
+three_highest_feelings = research_stage_long |> 
+  group_by(research_stage) |> 
+  slice_max(order_by = mean_value, n = 3, with_ties = FALSE)
+
+
 # what to do with 0
 # how many non-0 values
 # amount indicated weighted
@@ -180,26 +210,29 @@ negative_emotions = c(
 )
 
 dichotomous_emotion_data = data |> 
-  filter(!research_stage %in% "") |> 
+  filter(!is.na(research_stage)) |>
   group_by(research_stage) |> 
   summarise(
     positive_emotions = mean(rowMeans(across(all_of(positive_emotions)), na.rm = TRUE), na.rm = TRUE),
     negative_emotions = mean(rowMeans(across(all_of(negative_emotions)), na.rm = TRUE), na.rm = TRUE)
   )
 
+# highest positive and highest negative
+
+positive_emotions_data = data |> 
+  select(research_stage, all_of(positive_emotions)) |>
+  filter(!is.na(research_stage))
+
+negative_emotions_data = data |>
+  select(research_stage, all_of(negative_emotions)) |>
+  filter(!is.na(research_stage))
+
+
 ```
 
 ### Radar chart
 
 ```{r}
-emotion_vars <- c(
-  "interest", "amusement", "pride", "joy", "pleasure", "contentment",
-  "love", "admiration", "relief", "compassion", "sadness", "guilt",
-  "regret", "shame", "disappointment", "fear", "disgust", "contempt",
-  "hate", "anger"
-)
-
-
 radar_data <- data |> 
   summarize(across(emotion_vars, ~ round(mean(.x, na.rm = TRUE), 1))) |> 
   rownames_to_column(var = "label") |> 
@@ -296,5 +329,8 @@ ggsave(
 write.csv(research_stage_grouped_mean, here::here("data/processed/research_stage_grouped_mean.csv"), row.names = FALSE)
 write.csv(dichotomous_emotion_data, here::here("data/processed/dichotomous_emotion_data.csv"), row.names = FALSE)
 write.csv(general_feeling, here::here("data/processed/general_feeling.csv"), row.names = FALSE)
+
+highest_lowest_feeling
+three_highest_feelings
 ```
 
